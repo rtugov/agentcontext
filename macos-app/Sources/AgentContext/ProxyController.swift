@@ -33,7 +33,7 @@ final class ProxyController: ObservableObject {
     }()
 
     private var proxySourceURL: URL {
-        supportDirectory.appendingPathComponent("proxy.py")
+        supportDirectory.appendingPathComponent("ac-proxy.py")
     }
 
     private var requirementsURL: URL {
@@ -170,15 +170,16 @@ final class ProxyController: ObservableObject {
     private func launchPreparedProxy() {
         do {
             guard fileManager.fileExists(atPath: proxySourceURL.path) else {
-                throw ProxyError.setup("Bundled proxy.py could not be installed.")
+                throw ProxyError.setup("Bundled ac-proxy.py could not be installed.")
             }
 
             let process = Process()
             process.executableURL = venvPythonURL
             process.arguments = [
-                "-m", "uvicorn", "proxy:app",
+                "-m", "uvicorn", "ac-proxy:app",
                 "--host", "127.0.0.1",
                 "--port", String(port),
+                "--no-access-log",
             ]
             process.currentDirectoryURL = supportDirectory
 
@@ -252,7 +253,7 @@ final class ProxyController: ObservableObject {
         model_provider = "agentcontext"
 
         [model_providers.agentcontext]
-        name = "AgentContext local audit proxy"
+        name = "AgentContext ac-proxy"
         base_url = "http://127.0.0.1:8090"
         wire_api = "responses"
         requires_openai_auth = true
@@ -275,7 +276,7 @@ final class ProxyController: ObservableObject {
 
     private func installBundledFiles() {
         do {
-            try installBundledFile(name: "proxy", extension: "py", destination: proxySourceURL)
+            try installBundledFile(name: "ac-proxy", extension: "py", destination: proxySourceURL)
             try installBundledFile(name: "requirements", extension: "txt", destination: requirementsURL)
         } catch {
             state = .failed("Could not install bundled proxy files: \(error.localizedDescription)")

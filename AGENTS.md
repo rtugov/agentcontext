@@ -9,9 +9,9 @@ keep shared contracts explicit.
 ## Repository Layout
 
 - `macos-app` contains the native macOS 13+ Swift menu-bar application.
-- `proxy-server` contains the standalone Python request audit proxy and is the
+- `ac-proxy` contains the standalone Python request audit proxy and is the
   source of truth for proxy behavior and Python dependencies.
-- `prometheus-exporter` is reserved for a separate metrics application.
+- `alloy` contains the optional Alloy-to-Loki log shipping configuration.
 - `README.md` is the only user-facing README. Update it when commands,
   directories, runtime behavior, or configuration change.
 
@@ -19,6 +19,8 @@ keep shared contracts explicit.
 
 - Bind locally to `127.0.0.1:8090` by default. Do not expose the unauthenticated
   proxy publicly.
+- Default to `https://api.openai.com/v1` when `UPSTREAM_URL` is unset. Preserve
+  `UPSTREAM_URL` overrides so the standalone proxy remains provider-neutral.
 - Forward authorization and account headers but never write them to logs.
 - Request audit logs may contain prompts, source code, system/developer
   instructions, conversation context, and tool definitions. Treat them as
@@ -27,9 +29,9 @@ keep shared contracts explicit.
   streamed without recording response bodies. Document and test any future
   change to that contract.
 - Preserve streaming and remove hop-by-hop HTTP headers in both directions.
-- Keep `proxy-server/proxy.py` as the only maintained implementation. Do not
+- Keep `ac-proxy/ac-proxy.py` as the only maintained implementation. Do not
   edit the staged copies under `macos-app/Sources/AgentContext/Resources`.
-- Run `macos-app/Scripts/sync-resources.sh` after changing `proxy-server` and
+- Run `macos-app/Scripts/sync-resources.sh` after changing `ac-proxy` and
   before opening/building the Swift package directly.
 
 ## macOS Runtime Layout
@@ -43,14 +45,17 @@ keep shared contracts explicit.
 - The menu app may stop only the child process it started. If another process
   owns port `8090`, report it as external and do not terminate it.
 
-## Prometheus Exporter Boundaries
+## Alloy Integration Boundaries
 
-- Keep exporter code and dependencies under `prometheus-exporter`.
-- Export derived counters, gauges, and histograms only. Never expose raw
-  prompts, request bodies, authorization material, or arbitrary tool output as
-  metric labels.
-- Avoid unbounded labels such as request IDs, conversation IDs, paths with user
-  input, model output, or exception messages.
+- Require explicit `AC_REQUEST_LOG` and `LOKI_URL` values. Do not embed remote
+  credentials or provider-specific endpoints in the configuration.
+- Run Alloy with permission to read the private request log and persist its
+  position data across restarts.
+- Treat Loki as having the same security boundary as the raw audit log unless
+  a future pipeline explicitly redacts request bodies.
+- Keep labels bounded. Request IDs, conversation IDs, paths, model names,
+  commands, output, and exception messages must remain JSON fields rather than
+  Loki index labels.
 
 ## Validation
 
@@ -61,11 +66,18 @@ bash -n macos-app/Scripts/build-app.sh \
   macos-app/Scripts/install-user.sh \
   macos-app/Scripts/sync-resources.sh
 
-python3 -c 'import ast, pathlib; ast.parse(pathlib.Path("proxy-server/proxy.py").read_text())'
+python3 -c 'import ast, pathlib; ast.parse(pathlib.Path("ac-proxy/ac-proxy.py").read_text())'
 macos-app/Scripts/sync-resources.sh
-cmp proxy-server/proxy.py macos-app/Sources/AgentContext/Resources/proxy.py
-cmp proxy-server/requirements.txt macos-app/Sources/AgentContext/Resources/requirements.txt
+cmp ac-proxy/ac-proxy.py macos-app/Sources/AgentContext/Resources/ac-proxy.py
+cmp ac-proxy/requirements.txt macos-app/Sources/AgentContext/Resources/requirements.txt
 plutil -lint macos-app/Packaging/Info.plist
+```
+
+After installing each component's dependencies, also run:
+
+```bash
+ac-proxy/venv/bin/python -m unittest discover -s ac-proxy/tests -v
+alloy validate alloy/agentcontext.alloy
 ```
 
 On macOS, also build and test the application:
@@ -83,13 +95,13 @@ on Quit.
 
 ## Current Work State
 
-- The Python proxy syntax, shell scripts, staged resources, and Info.plist XML
-  have been validated on Linux.
+- The Python proxy syntax and tests, shell scripts, staged resources, and
+  Info.plist XML have been validated on Linux. Alloy configuration validation
+  requires an Alloy installation.
 - Swift/AppKit compilation cannot be verified in the current Linux workspace.
   The next required milestone is a macOS build with Xcode Command Line Tools,
   followed by the menu and lifecycle checks listed above.
-- The repository is initialized locally on branch `main`; no commit or remote
-  has been created.
+- The repository uses branch `main` and has a configured `origin` remote.
 
 ## Change Safety
 

@@ -14,7 +14,7 @@ let package = Package(
         .executableTarget(
             name: "AgentContext",
             resources: [
-                .copy("Resources/proxy.py"),
+                .copy("Resources/ac-proxy.py"),
                 .copy("Resources/requirements.txt"),
             ]
         ),
