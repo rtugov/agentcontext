@@ -1,0 +1,13 @@
+.git
+.github
+.venv
+venv
+**/venv
+**/__pycache__
+*.py[cod]
+*.log
+*.jsonl
+*.jsonl.*
+data
+htmlcov
+.coverage

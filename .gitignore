@@ -1,0 +1,21 @@
+.DS_Store
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+
+# Runtime configuration and sensitive audit data
+.env
+log
+*.log
+*.jsonl
+*.jsonl.*
+data/
+
+# Python build and test output
+build/
+dist/
+*.egg-info/
+.coverage
+htmlcov/
+.pytest_cache/

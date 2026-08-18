@@ -1,114 +1,234 @@
-# AgentContext (AC)
+# AgentContext
 
-AgentContext is a collection of independently runnable applications for
-auditing local AI-agent requests and shipping those audit logs to an
-observability backend.
+**A local audit proxy and context viewer for AI coding agents.**
 
-**AC — Observability for AI agents.**
+[![Release](https://img.shields.io/badge/release-0.0.1-blue)](https://github.com/rtugov/agentcontext/releases)
+[![Python](https://img.shields.io/badge/python-3.9%2B-3776ab)](https://www.python.org/)
+[![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-**One local observability gateway for Codex, OpenCode, and pi.**
-
-## Brand and component naming
-
-The name can be playful:
-
-> **Agent Context (AC)** — *Keeping your agents cool under pressure.* 😄
-
-More serious tagline options:
-
-- **AC — Observability for AI agents**
-- **AC — See what your agents see**
-- **AC — Context, actions, traces**
-- **AC — Understand every agent run**
-- **AC — Agent telemetry, in context**
-
-Future components should use short, consistent names such as `ac-agent`,
-`ac-collector`, `ac-api`, and `ac-ui`.
+AgentContext sits between an AI client and its existing HTTP API. It preserves
+the request protocol and streaming response while writing each outbound request
+to a private JSONL audit log. The same process serves a dependency-free
+**Context Timeline** that reconstructs messages, reasoning markers, tool calls,
+and tool results from captured request context.
 
 ```text
-AgentContext/
-├── macos-app/            macOS menu-bar controller
-├── ac-proxy/             protocol-preserving multi-agent audit proxy
-└── alloy/                optional Alloy-to-Loki integration
+Codex / OpenCode / pi
+          │
+          ▼
+  AgentContext :8090 ─────► existing provider API
+          │
+          ├── requests.jsonl
+          └── /_audit/context
 ```
 
-The standalone proxy defaults to the standard OpenAI API at
-`https://api.openai.com/v1`. Set `UPSTREAM_URL` to use another compatible
-provider. It streams responses back without recording response bodies and
-never records authorization headers, account headers, or query-string
-contents. The proxy binds to a loopback address by default, provides no
-authentication of its own, and should not be exposed directly to a public
-network.
+AgentContext does not translate protocols. The client and upstream provider
+must already speak the same protocol, such as OpenAI Responses, OpenAI Chat
+Completions, or Anthropic Messages.
 
-## One gateway for multiple coding agents
+> [!WARNING]
+> AgentContext has no authentication. Bind it to loopback and use a VPN or SSH
+> tunnel for remote access. Audit logs can contain prompts, source code,
+> instructions, images, commands, and tool output. Never expose the proxy or
+> logs directly to a public network.
 
-AgentContext is intentionally an agent gateway, not a Codex-only logger. The
-standalone proxy can audit Codex, OpenCode, pi, and other clients that let you
-override an API base URL. It preserves the client's wire protocol, paths,
-streaming response, authorization, and provider-specific account headers while
-keeping credentials out of audit logs.
+## Features
 
-| Client | Integration path | Current status |
-| --- | --- | --- |
-| Codex | `model_provider` and `base_url` in `~/.codex/config.toml` | macOS preset available |
-| OpenCode | Provider `options.baseURL` (or V2 `settings.baseURL`) | Supported proxy target; end-to-end preset still to be tested |
-| pi | Provider `baseUrl` in `~/.pi/agent/models.json` | Supported proxy target; end-to-end preset still to be tested |
+- Transparent forwarding of HTTP methods, paths, query strings, credentials,
+  provider headers, duplicate headers, and streaming responses.
+- Private rotating JSONL logs: 25 MiB per file with five backups.
+- Authorization, account headers, and query-string contents are never logged.
+- Context Timeline with 2.5-second live polling.
+- Deduplicated user, developer, and assistant messages.
+- Matched tool calls and results using `call_id`.
+- Per-call context growth, filters, search, and expandable payloads.
+- Encrypted reasoning content is excluded from the browser API.
+- One Python process, no database, no frontend build, and no external assets.
 
-The proxy does not translate between API protocols. The selected client mode
-and upstream must speak the same protocol, such as Anthropic Messages, OpenAI
-Responses, OpenAI Chat Completions, or another HTTP streaming API. One proxy
-process points to one `UPSTREAM_URL`; agents using that same upstream can share
-it. Run separate loopback ports and log files when agents need different
-upstreams.
+## Requirements
 
-The current macOS menu app is the Codex preset. OpenCode and pi can use the
-standalone proxy today; dedicated menu presets and verified configuration-copy
-actions are a natural next step.
+- Python 3.9 or newer.
+- A client that supports an API base URL override.
+- Access to the upstream provider, directly or through your VPN.
 
-## ac-proxy
-
-`ac-proxy` is the provider-neutral FastAPI application used by the macOS
-app. It can also be run directly on macOS or Linux with Python 3.9 or newer.
-Without `UPSTREAM_URL`, requests are forwarded to the standard OpenAI API:
+## Quick start
 
 ```bash
-cd ac-proxy
+git clone https://github.com/rtugov/agentcontext.git
+cd agentcontext/ac-proxy
+
 python3 -m venv venv
 ./venv/bin/pip install -r requirements.txt
 
 LLM_LOG_FILE="$PWD/requests.jsonl" \
-./venv/bin/uvicorn ac-proxy:app --host 127.0.0.1 --port 8090 --no-access-log
+./venv/bin/uvicorn ac-proxy:app \
+  --host 127.0.0.1 \
+  --port 8090 \
+  --no-access-log
 ```
 
-Override the upstream for another provider:
+When `UPSTREAM_URL` is not set, requests are forwarded to
+`https://api.openai.com/v1`.
 
-```bash
-UPSTREAM_URL=https://api.example.com/v1 \
-LLM_LOG_FILE="$PWD/requests.jsonl" \
-./venv/bin/uvicorn ac-proxy:app --host 127.0.0.1 --port 8090 --no-access-log
-```
-
-Verify it locally:
+Verify the proxy:
 
 ```bash
 curl http://127.0.0.1:8090/_audit/healthz
 ```
 
-The expected response is `{"status":"ok"}`.
+Expected response:
 
-The forwarding rule is `UPSTREAM_URL + incoming request path`. For example,
-an agent request to `/messages` is sent to
-`https://provider.example/v1/messages` when `UPSTREAM_URL` is
-`https://provider.example/v1`. The proxy does not assume OpenAI, Anthropic, or
-any other provider protocol.
+```json
+{"status":"ok"}
+```
 
-Then point the matching OpenCode `baseURL` or pi `baseUrl` at
-`http://127.0.0.1:8090`. Keep authentication in the agent's normal credential
-store or environment; AgentContext forwards those headers without logging
-them.
+Open the live Context Timeline:
 
-For example, start the proxy with `UPSTREAM_URL=https://api.anthropic.com/v1`,
-then override the existing Anthropic provider in OpenCode's `opencode.json`:
+```text
+http://127.0.0.1:8090/_audit/context
+```
+
+The page polls every 2.5 seconds while its browser tab is visible. It reads the
+active log and rotated backups directly; no separate web application is needed.
+
+## Choose the upstream
+
+AgentContext forwards to `UPSTREAM_URL + incoming path`.
+
+Standard OpenAI API:
+
+```bash
+UPSTREAM_URL=https://api.openai.com/v1 \
+LLM_LOG_FILE="$PWD/requests.jsonl" \
+./venv/bin/uvicorn ac-proxy:app --host 127.0.0.1 --port 8090 --no-access-log
+```
+
+Codex with an existing ChatGPT subscription login:
+
+```bash
+UPSTREAM_URL=https://chatgpt.com/backend-api/codex \
+LLM_LOG_FILE="$PWD/requests.jsonl" \
+./venv/bin/uvicorn ac-proxy:app --host 127.0.0.1 --port 8090 --no-access-log
+```
+
+Another provider:
+
+```bash
+UPSTREAM_URL=https://provider.example/v1 \
+LLM_LOG_FILE="$PWD/requests.jsonl" \
+./venv/bin/uvicorn ac-proxy:app --host 127.0.0.1 --port 8090 --no-access-log
+```
+
+Keep credentials in the client's normal credential store. AgentContext forwards
+authentication headers for the lifetime of the request but never writes them to
+the audit log.
+
+## Codex and VS Code configuration
+
+Add a provider to the user-level `~/.codex/config.toml`:
+
+```toml
+model_provider = "agentcontext"
+
+[model_providers.agentcontext]
+name = "AgentContext"
+base_url = "http://127.0.0.1:8090"
+wire_api = "responses"
+requires_openai_auth = true
+
+[history]
+persistence = "save-all"
+```
+
+Use `base_url = "http://127.0.0.1:8090"` without `/v1` when the proxy upstream
+is `https://chatgpt.com/backend-api/codex`: Codex appends `/responses` itself.
+Restart Codex or run **Developer: Reload Window** in VS Code after changing the
+provider.
+
+### Why VS Code history can appear to disappear
+
+Codex stores local threads with the model-provider identity that created them.
+After changing the top-level `model_provider` from the built-in `openai`
+provider to `agentcontext`, the VS Code sidebar can show only the new provider's
+threads. The previous threads normally remain on disk; they were not deleted.
+
+To make the previous provider history visible again:
+
+1. Set `model_provider = "openai"` in `~/.codex/config.toml`.
+2. Reload the VS Code window.
+3. Return to `model_provider = "agentcontext"` and reload when you want audited
+   requests again.
+
+`history.persistence = "save-all"` tells Codex to retain local history so the
+CLI and VS Code extension can read it. It does not guarantee that every Codex
+version merges threads from different providers into one sidebar; provider
+switching may still be required. Do not delete files under `~/.codex` while
+troubleshooting a visibility change.
+
+Codex configuration evolves. Check the official
+[Codex configuration reference](https://developers.openai.com/codex/config-reference/)
+for your installed version.
+
+## VPN and remote-host setups
+
+### Client and proxy are on the VPN machine
+
+If the machine running VS Code or your agent already has the required VPN
+access, only AgentContext needs to be started. No SSH tunnel, collector, or
+second web service is required:
+
+```bash
+UPSTREAM_URL=https://provider-reachable-over-vpn.example/v1 \
+LLM_LOG_FILE="$PWD/requests.jsonl" \
+./venv/bin/uvicorn ac-proxy:app --host 127.0.0.1 --port 8090 --no-access-log
+```
+
+Point the client to `http://127.0.0.1:8090`.
+
+### Proxy runs on a remote VPN host
+
+Start AgentContext on the remote host, still bound to its loopback interface.
+Then forward it to your workstation:
+
+```bash
+ssh -NT \
+  -o ExitOnForwardFailure=yes \
+  -o ServerAliveInterval=30 \
+  -o ServerAliveCountMax=3 \
+  -L 127.0.0.1:8090:127.0.0.1:8090 \
+  user@vpn-host.example
+```
+
+The client continues to use `http://127.0.0.1:8090`. SSH encrypts the traffic,
+including the authorization headers that AgentContext forwards upstream.
+
+### One SSH connection for MCP and AgentContext
+
+If an MCP server and AgentContext both run on the remote host, forward both
+loopback ports through one connection. This example maps a remote MCP service
+on port `28988` to local port `8080`, and AgentContext to local port `8090`:
+
+```bash
+ssh -NT \
+  -o ExitOnForwardFailure=yes \
+  -o ServerAliveInterval=30 \
+  -o ServerAliveCountMax=3 \
+  -L 127.0.0.1:8080:127.0.0.1:28988 \
+  -L 127.0.0.1:8090:127.0.0.1:8090 \
+  user@vpn-host.example
+```
+
+Configure the MCP client to use its local port `8080` and the model provider to
+use `http://127.0.0.1:8090`. MCP is independent of AgentContext; omit the first
+`-L` line when you only need the audit proxy. Replace port `28988` with the
+actual listen port of your MCP server.
+
+## OpenCode and pi
+
+Any client that supports a provider base URL can use AgentContext. Match the
+proxy's `UPSTREAM_URL` to the protocol and provider configured in the client.
+
+OpenCode provider override:
 
 ```json
 {
@@ -123,7 +243,7 @@ then override the existing Anthropic provider in OpenCode's `opencode.json`:
 }
 ```
 
-The equivalent pi override in `~/.pi/agent/models.json` is:
+pi provider override:
 
 ```json
 {
@@ -135,248 +255,97 @@ The equivalent pi override in `~/.pi/agent/models.json` is:
 }
 ```
 
-These overrides keep each client's existing models and authentication. Match
-the proxy's `UPSTREAM_URL` to that provider before starting it. See the
-[OpenCode provider configuration](https://opencode.ai/docs/providers) and
-[pi custom-model configuration](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/models.md)
-for other providers and API modes.
+These integrations preserve the client's existing model and authentication
+configuration. Dedicated presets have not yet been end-to-end tested in
+release `0.0.1`.
 
-### Optional Codex preset
+## Docker
 
-The macOS menu app currently supplies an explicit Codex upstream. The
-equivalent standalone command is:
+Build the image:
 
 ```bash
-UPSTREAM_URL=https://chatgpt.com/backend-api/codex \
-LLM_LOG_FILE="$PWD/requests.jsonl" \
-./venv/bin/uvicorn ac-proxy:app --host 127.0.0.1 --port 8090 --no-access-log
+docker build -t agentcontext:0.0.1 .
+docker volume create agentcontext-data
 ```
 
-## macOS menu-bar app
-
-`macos-app` is a native macOS 13+ menu-bar controller. It starts and stops the
-bundled standalone proxy on `127.0.0.1:8090`, reports health, opens the request
-log, and copies the required Codex provider configuration.
-
-Requirements:
-
-- macOS 13 or newer.
-- Xcode Command Line Tools (`xcode-select --install`).
-- Python 3.9 or newer. Homebrew Python is recommended:
-  `brew install python`.
-
-Build and install from Terminal:
+Run it with the container port published only on host loopback:
 
 ```bash
-cd agentcontext/macos-app
-chmod +x Scripts/build-app.sh Scripts/install-user.sh
-Scripts/build-app.sh
-Scripts/install-user.sh
-open "$HOME/Applications/AgentContext.app"
+docker run --rm \
+  -p 127.0.0.1:8090:8090 \
+  -e UPSTREAM_URL=https://api.openai.com/v1 \
+  -v agentcontext-data:/data \
+  agentcontext:0.0.1
 ```
 
-The app is ad-hoc signed for personal use. On first launch, macOS may require
-approval in **System Settings → Privacy & Security**. The first proxy start
-creates a private virtual environment and installs the pinned dependencies, so
-it requires internet access and can take a minute.
+Do not publish it with `-p 8090:8090` on an untrusted host; that can expose the
+unauthenticated proxy to the network.
 
-The build script copies its bundled Python resources from `ac-proxy`,
-keeping the standalone service as the source of truth for the app-managed
-service. Run `Scripts/sync-resources.sh` before opening the Swift package
-directly in Xcode.
+## Audit data and Context Timeline
 
-## Codex configuration
-
-Choose **Copy Codex configuration** from the AgentContext menu and merge the
-copied text into the top-level user file at `~/.codex/config.toml`:
-
-```toml
-model_provider = "agentcontext"
-
-[model_providers.agentcontext]
-name = "AgentContext ac-proxy"
-base_url = "http://127.0.0.1:8090"
-wire_api = "responses"
-requires_openai_auth = true
-```
-
-Restart Codex or reload the VS Code window after changing providers. Threads
-created with the built-in `openai` provider remain on disk but may appear in a
-different provider history from `agentcontext` threads.
-
-## macOS files and logs
-
-Runtime files follow the standard per-user macOS locations:
-
-```text
-~/Library/Application Support/AgentContext/
-  ac-proxy.py
-  requirements.txt
-  venv/
-
-~/Library/Logs/AgentContext/
-  requests.jsonl
-  requests.jsonl.1 ... requests.jsonl.5
-  application.log
-```
-
-`requests.jsonl` rotates at 25 MiB and keeps five backups. The application log
-rotates at 5 MiB and keeps one backup. Directories use mode `0700`; log and
-source files use mode `0600`.
-
-The request log contains prompts, source code, system/developer instructions,
-conversation context, and tool definitions. Treat it as sensitive. Do not put
-it in iCloud Drive or a shared folder unless that exposure is intentional.
-
-For operational diagnostics that do not need a persistent text file, macOS
-Unified Logging (`Logger`/Console.app) is preferable. AgentContext deliberately
-uses `~/Library/Logs` because request JSONL is user-owned audit data that needs
-to be directly inspectable and removable.
-
-## Using the logs effectively
-
-Treat AgentContext data as two different observability layers:
-
-| Layer | Best use | Data policy |
-| --- | --- | --- |
-| Raw `requests.jsonl` | Reproduce a request, inspect supplied context, and investigate a specific request ID | Keep local or in a tightly restricted log store with short retention |
-| Records in Loki | Search proxy requests and connection errors over time; build log-derived dashboards and alerts | The supplied Alloy configuration ships the complete raw record, so Loki must have the same security boundary as the local log |
-
-Loki, Grafana, and Grafana Alloy are a good target stack: Alloy tails the JSONL
-file, Loki stores and indexes it, and Grafana provides dashboards and log
-investigation. Prometheus is not a log store and is not required for retaining
-these records. It can be added later if dedicated numeric metrics and alerts
-become useful.
-
-Do not send the current raw request log to a shared or hosted Loki instance by
-default. It can contain prompts, source code, shell commands, tool output, and
-conversation context.
-
-For Loki, start with low-cardinality indexed labels such as `service_name`,
-`environment`, and a bounded `event` value. Keep `request_id`, `thread_id`,
-paths, model strings, tool names, commands, and targets as JSON fields or
-structured metadata rather than indexed labels. Commands and output should be
-removed or redacted unless the Loki tenant has the same security boundary as
-the local audit log.
-
-The current proxy records request events and upstream connection errors. It
-does **not** record response bodies, so it cannot yet produce authoritative
-`tool_call`, tool-completion status, response status, or execution-duration
-events like this proposed normalized record:
+Each request record contains:
 
 ```json
 {
-  "timestamp": "2026-08-10T13:39:21Z",
-  "event": "tool_call",
-  "tool": "exec",
-  "status": "completed",
-  "duration_seconds": 2.2,
-  "request_id": "..."
+  "timestamp": "2026-08-18T12:00:00Z",
+  "request_id": "...",
+  "method": "POST",
+  "path": "/responses",
+  "query_present": false,
+  "request": {},
+  "request_bytes": 1234
 }
 ```
 
-Add a separate sanitized lifecycle event stream before building dashboards on
-those fields. Safe next fields for the proxy are HTTP response status,
-time-to-response-headers, total stream duration, and byte counts; these do not
-require storing response bodies.
+The query string itself, request headers, authorization tokens, and provider
+account identifiers are not recorded. Responses are streamed back without
+recording response bodies.
 
-### Optional native telemetry integrations
+The Context Timeline reconstructs events already present in captured request
+context. Later requests often repeat earlier context, so items are deduplicated
+by `id` or `call_id`. Event time means “first observed in this request”; it is
+not an exact tool execution timestamp. A final assistant response may not be
+visible until a later request includes it in context.
 
-AgentContext does not require native agent telemetry. Its core remains the
-provider-neutral proxy and raw audit contract.
-Native integrations are optional enrichment sources when deeper semantic
-events are useful:
+Local endpoints:
 
-- Codex supports opt-in OpenTelemetry logs and metrics for API
-  requests, stream events, tool decisions, tool results, durations, and
-  success status. Prompts are redacted by default. This OTLP data can be sent
-  to Alloy or an OpenTelemetry Collector and correlated with AgentContext
-  proxy records. See the
-  [Codex OTel configuration](https://github.com/openai/codex/blob/main/docs/config.md#otel).
-- OpenCode plugins can optionally map session, permission, and
-  `tool.execute.before` / `tool.execute.after` hooks into the AgentContext event
-  contract.
-- pi extensions can optionally map agent and tool lifecycle events into that
-  same contract.
+| Endpoint | Purpose |
+| --- | --- |
+| `/_audit/healthz` | Health check |
+| `/_audit/context` | Context Timeline web page |
+| `/_audit/api/context?limit=200` | Normalized calls and unique events |
+| `/_audit/api/requests?limit=200` | Raw captured request records |
 
-A future collector may normalize any of these sources, but no single agent's
-native telemetry should define the AgentContext schema. If full cross-service
-timelines become important, OpenTelemetry traces and Tempo can be added without
-turning request or thread IDs into Prometheus/Loki index labels.
+The API limit is clamped to 1–1000 records. `/_audit/trajectory` remains an
+alias for early development links.
 
-## Alloy integration
+## Configuration
 
-Yes: point Alloy at the active `requests.jsonl` file. Alloy is the collector,
-not the durable log store. It reads newline-delimited records, remembers its
-read position under `--storage.path`, and sends each record to Loki. Loki owns
-retention and querying.
+| Variable | Default | Description |
+| --- | --- | --- |
+| `UPSTREAM_URL` | `https://api.openai.com/v1` | Provider base URL |
+| `LLM_LOG_FILE` | `./requests.jsonl` | Private rotating audit log; set empty to log to stdout |
 
-The supplied [`alloy/agentcontext.alloy`](alloy/agentcontext.alloy) pipeline:
+One process points to one upstream. Run separate ports and log files when agents
+need different providers.
 
-- reads the absolute path supplied in `AC_REQUEST_LOG`;
-- starts at the beginning on its first run so existing active-file records are
-  included;
-- parses the record timestamp while preserving the complete JSON line;
-- adds only the bounded `service_name="agentcontext"` and
-  `component="ac_proxy"` labels; and
-- requires an explicit Loki push URL in `LOKI_URL`.
-
-Run Alloy as the same macOS user as AgentContext so it can read the private
-`0600` log file. Keep its position data on persistent local storage:
+## Development
 
 ```bash
-export AC_REQUEST_LOG="$HOME/Library/Logs/AgentContext/requests.jsonl"
-export LOKI_URL="http://127.0.0.1:3100/loki/api/v1/push"
-
-alloy validate alloy/agentcontext.alloy
-alloy run \
-  --storage.path="$HOME/Library/Application Support/AgentContext/alloy-data" \
-  alloy/agentcontext.alloy
-```
-
-Query fields from the JSON at query time instead of making them index labels:
-
-```logql
-{service_name="agentcontext", component="ac_proxy"} | json
-{service_name="agentcontext", component="ac_proxy"} | json | proxy_error != ""
-```
-
-Persistent positions avoid rereading acknowledged bytes after a normal Alloy
-restart. They do not make the local files durable. With this active-file-only
-configuration, records can be missed if Alloy is stopped while the proxy
-rotates the file; the rotated backups then provide manual recovery rather than
-automatic ingestion. For a stronger audit guarantee, monitor delivery failures
-and disk space, test recovery, and use an appropriately replicated Loki
-deployment or a separate encrypted archive.
-
-The current configuration follows only the active file. This avoids duplicate
-ingestion from matching both an active file and renamed rotation backups. Test
-rotation and outage recovery under the chosen macOS Alloy service setup before
-treating the pipeline as audit-grade.
-
-See Grafana's documentation for
-[`loki.source.file`](https://grafana.com/docs/alloy/latest/reference/components/loki/loki.source.file/),
-[`alloy run`](https://grafana.com/docs/alloy/latest/reference/cli/run/), and
-[Loki label cardinality](https://grafana.com/docs/loki/latest/get-started/labels/cardinality/).
-
-## Portable validation
-
-From the repository root, create component virtual environments and run:
-
-```bash
+python3 -m venv ac-proxy/venv
+ac-proxy/venv/bin/pip install -r ac-proxy/requirements.txt
 ac-proxy/venv/bin/python -m unittest discover -s ac-proxy/tests -v
-
-bash -n macos-app/Scripts/build-app.sh \
-  macos-app/Scripts/install-user.sh \
-  macos-app/Scripts/sync-resources.sh
-python3 -c 'import ast, pathlib; ast.parse(pathlib.Path("ac-proxy/ac-proxy.py").read_text())'
-macos-app/Scripts/sync-resources.sh
-cmp ac-proxy/ac-proxy.py macos-app/Sources/AgentContext/Resources/ac-proxy.py
-cmp ac-proxy/requirements.txt macos-app/Sources/AgentContext/Resources/requirements.txt
-plutil -lint macos-app/Packaging/Info.plist
-alloy validate alloy/agentcontext.alloy
+ac-proxy/venv/bin/python -m py_compile ac-proxy/ac-proxy.py
 ```
 
-The Alloy validation command requires Alloy to be installed. The native menu
-app still requires macOS 13+ and Xcode Command Line Tools for its build and
-lifecycle validation.
+See [CONTRIBUTING.md](CONTRIBUTING.md) before submitting a change. Security
+issues and safe deployment guidance are covered in [SECURITY.md](SECURITY.md).
+
+## Release status
+
+`0.0.1` is the first public preview. The log format and normalized Context API
+may change before `1.0.0`.
+
+## License
+
+AgentContext is available under the [MIT License](LICENSE).
