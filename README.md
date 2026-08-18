@@ -26,6 +26,19 @@ AgentContext does not translate protocols. The client and upstream provider
 must already speak the same protocol, such as OpenAI Responses, OpenAI Chat
 Completions, or Anthropic Messages.
 
+`UPSTREAM_URL` can point to any reachable HTTP or HTTPS model endpoint—not
+only OpenAI. This includes a local or remote llama.cpp server, OpenRouter,
+self-hosted inference, and provider-compatible gateways. AgentContext simply
+preserves the client's protocol and forwards each path to the configured base
+URL.
+
+## Context Timeline
+
+[![AgentContext Context Timeline showing captured calls, messages, tool calls, and results](docs/context-timeline.png)](docs/context-timeline.png)
+
+Open `http://127.0.0.1:8090/_audit/context` while the proxy is running to
+inspect captured context as it arrives.
+
 > [!WARNING]
 > AgentContext has no authentication. Bind it to loopback and use a VPN or SSH
 > tunnel for remote access. Audit logs can contain prompts, source code,
@@ -50,6 +63,19 @@ Completions, or Anthropic Messages.
 - Python 3.9 or newer.
 - A client that supports an API base URL override.
 - Access to the upstream provider, directly or through your VPN.
+
+## Tested clients
+
+Release `0.0.1` has been tested end to end with:
+
+| Client | Configuration |
+| --- | --- |
+| Codex | `model_provider` and `base_url` in `~/.codex/config.toml` |
+| OpenCode | Provider `options.baseURL` override |
+| [pi](https://pi.dev/) | Provider `baseUrl` override |
+
+Other clients should work when they support a base-URL override and speak the
+same wire protocol as the selected upstream.
 
 ## Quick start
 
@@ -93,7 +119,9 @@ active log and rotated backups directly; no separate web application is needed.
 
 ## Choose the upstream
 
-AgentContext forwards to `UPSTREAM_URL + incoming path`.
+AgentContext forwards to `UPSTREAM_URL + incoming path`. The upstream can be a
+commercial API, an API gateway, or a model server running on the same machine,
+another VPN host, a container, or Kubernetes.
 
 Standard OpenAI API:
 
@@ -118,6 +146,26 @@ UPSTREAM_URL=https://provider.example/v1 \
 LLM_LOG_FILE="$PWD/requests.jsonl" \
 ./venv/bin/uvicorn ac-proxy:app --host 127.0.0.1 --port 8090 --no-access-log
 ```
+
+OpenRouter:
+
+```bash
+UPSTREAM_URL=https://openrouter.ai/api/v1 \
+LLM_LOG_FILE="$PWD/requests.jsonl" \
+./venv/bin/uvicorn ac-proxy:app --host 127.0.0.1 --port 8090 --no-access-log
+```
+
+A local llama.cpp server exposing an OpenAI-compatible API on port `8080`:
+
+```bash
+UPSTREAM_URL=http://127.0.0.1:8080/v1 \
+LLM_LOG_FILE="$PWD/requests.jsonl" \
+./venv/bin/uvicorn ac-proxy:app --host 127.0.0.1 --port 8090 --no-access-log
+```
+
+For remote or containerized llama.cpp, replace `127.0.0.1:8080` with the
+address reachable from the AgentContext process. Configure the client model
+and API mode for that server; AgentContext does not choose or translate models.
 
 Keep credentials in the client's normal credential store. AgentContext forwards
 authentication headers for the lifetime of the request but never writes them to
@@ -255,9 +303,9 @@ pi provider override:
 }
 ```
 
-These integrations preserve the client's existing model and authentication
-configuration. Dedicated presets have not yet been end-to-end tested in
-release `0.0.1`.
+These tested integrations preserve the client's existing model and
+authentication configuration. The client remains responsible for selecting a
+model and sending the protocol and credentials expected by the upstream.
 
 ## Docker
 
