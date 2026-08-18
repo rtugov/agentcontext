@@ -26,6 +26,16 @@ AgentContext does not translate protocols. The client and upstream provider
 must already speak the same protocol, such as OpenAI Responses, OpenAI Chat
 Completions, or Anthropic Messages.
 
+### Why inspect agent context?
+
+AI coding agents often send much more than the latest prompt: system and
+developer instructions, conversation history, tool calls and results, MCP
+output, and other accumulated context may all be included in a model request.
+When an agent behaves unexpectedly, consumes more context than expected, or
+you need to audit what actually left the machine, seeing the outbound request
+is often the simplest place to start. AgentContext provides that local,
+protocol-level view without instrumenting the agent itself.
+
 `UPSTREAM_URL` can point to any reachable HTTP or HTTPS model endpoint—not
 only OpenAI. This includes a local or remote llama.cpp server, OpenRouter,
 self-hosted inference, and provider-compatible gateways. AgentContext simply
@@ -76,6 +86,21 @@ Release `0.0.1` has been tested end to end with:
 
 Other clients should work when they support a base-URL override and speak the
 same wire protocol as the selected upstream.
+
+### Other observability options
+
+AgentContext is complementary to OpenTelemetry and full observability
+platforms. Some coding agents can emit their own telemetry: Claude Code
+supports OpenTelemetry metrics and events with optional tracing, Codex can
+export OpenTelemetry telemetry, OpenCode has experimental OpenTelemetry support,
+and pi has community OpenTelemetry extensions. Tools such as Langfuse and
+Arize Phoenix can provide broader tracing, metrics, evaluations, and dashboards.
+
+Those approaches are useful for questions like *how long did this run take?*,
+*which tools failed?*, or *how many tokens were used?* AgentContext focuses on
+a different question: **what context did the coding agent actually send to the
+model API?** It works at the HTTP boundary, so it can provide that view without
+requiring SDK-level instrumentation or a separate telemetry backend.
 
 ## Quick start
 
