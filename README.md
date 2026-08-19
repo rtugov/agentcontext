@@ -393,12 +393,21 @@ need different providers.
 
 ## Related projects
 
-[AgentsView](https://agentsview.io/) is a local-first application for importing,
-searching, and analyzing the session files that coding agents leave on disk.
-Use it when you want historical session browsing, cost reporting, or
-cross-project analytics. AgentContext instead focuses on the live HTTP request
-context sent to a chosen upstream. The two tools observe different layers and
-can be used together.
+These projects overlap in agent and LLM observability, but they collect data at
+different layers.
+
+### How they differ
+
+| Project | How it gathers data | Best suited for |
+| --- | --- | --- |
+| AgentContext | Captures live LLM request bodies routed through its HTTP proxy | Inspecting the exact context sent to a chosen upstream |
+| [AgentsView](https://agentsview.io/) | Discovers and parses session files that coding agents write on disk | Historical session browsing, search, cost reporting, and cross-project analytics |
+| [Langfuse](https://langfuse.com/) | Receives instrumented traces through SDKs, framework integrations, APIs, or OpenTelemetry | Application tracing, latency and cost analysis, evaluations, and dashboards |
+
+In Langfuse, a `sessionId` groups traces that have already been ingested; it
+does not normally scan Codex or pi session files. AgentsView reads those local
+files, while AgentContext observes new HTTP traffic. The tools can therefore be
+used together.
 
 ### Other observability options
 
@@ -406,9 +415,8 @@ AgentContext is also complementary to OpenTelemetry and full observability
 platforms. Some coding agents can emit their own telemetry: Claude Code
 supports OpenTelemetry metrics and events with optional tracing, Codex can
 export OpenTelemetry telemetry, OpenCode has experimental OpenTelemetry
-support, and pi has community OpenTelemetry extensions. Tools such as Langfuse
-and Arize Phoenix can provide broader tracing, metrics, evaluations, and
-dashboards.
+support, and pi has community OpenTelemetry extensions. Tools such as Arize
+Phoenix can provide broader tracing, metrics, evaluations, and dashboards.
 
 Those approaches are useful for questions like *how long did this run take?*,
 *which tools failed?*, or *how many tokens were used?* AgentContext focuses on
