@@ -1,16 +1,21 @@
 # AgentContext
 
-**A local audit proxy and context viewer for AI coding agents.**
+**See exactly what your coding agent sends to the model.**
 
 [![Release](https://img.shields.io/badge/release-0.0.1-blue)](https://github.com/rtugov/agentcontext/releases)
 [![Python](https://img.shields.io/badge/python-3.9%2B-3776ab)](https://www.python.org/)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-AgentContext sits between an AI client and its existing HTTP API. It preserves
-the request protocol and streaming response while writing each outbound request
-to a private JSONL audit log. The same process serves a dependency-free
-**Context Timeline** that reconstructs messages, reasoning markers, tool calls,
-and tool results from captured request context.
+AgentContext is a small, self-hosted HTTP proxy for live request-context
+inspection. It sits between an AI client and its existing API, forwards the
+request protocol and streaming response, records outbound request bodies in a
+private rotating JSONL log, and serves a dependency-free **Request Context
+Timeline**.
+
+Use it to inspect context growth, repeated prompts, reasoning markers, tool
+calls, and tool results as they are sent upstream. AgentContext captures new
+traffic routed through the proxy; it is not a historical session importer and
+does not record upstream response bodies.
 
 ```text
 Codex / OpenCode / pi
@@ -22,10 +27,6 @@ Codex / OpenCode / pi
           └── /_audit/context
 ```
 
-AgentContext does not translate protocols. The client and upstream provider
-must already speak the same protocol, such as OpenAI Responses, OpenAI Chat
-Completions, or Anthropic Messages.
-
 ### Why inspect agent context?
 
 AI coding agents often send much more than the latest prompt: system and
@@ -36,15 +37,7 @@ you need to audit what actually left the machine, seeing the outbound request
 is often the simplest place to start. AgentContext provides that local,
 protocol-level view without instrumenting the agent itself.
 
-`UPSTREAM_URL` can point to any reachable HTTP or HTTPS model endpoint—not
-only OpenAI. This includes a local or remote llama.cpp server, OpenRouter,
-self-hosted inference, and provider-compatible gateways. AgentContext simply
-preserves the client's protocol and forwards each path to the configured base
-URL.
-
-## Context Timeline
-
-[![AgentContext Context Timeline showing captured calls, messages, tool calls, and results](docs/context-timeline.png)](docs/context-timeline.png)
+[![AgentContext Request Context Timeline showing captured calls, messages, tool calls, and results](docs/context-timeline.png)](docs/context-timeline.png)
 
 Open `http://127.0.0.1:8090/_audit/context` while the proxy is running to
 inspect captured context as it arrives.
@@ -54,53 +47,6 @@ inspect captured context as it arrives.
 > tunnel for remote access. Audit logs can contain prompts, source code,
 > instructions, images, commands, and tool output. Never expose the proxy or
 > logs directly to a public network.
-
-## Features
-
-- Transparent forwarding of HTTP methods, paths, query strings, credentials,
-  provider headers, duplicate headers, and streaming responses.
-- Private rotating JSONL logs: 25 MiB per file with five backups.
-- Authorization, account headers, and query-string contents are never logged.
-- Context Timeline with 2.5-second live polling.
-- Deduplicated user, developer, and assistant messages.
-- Matched tool calls and results using `call_id`.
-- Per-call context growth, filters, search, and expandable payloads.
-- Encrypted reasoning content is excluded from the browser API.
-- One Python process, no database, no frontend build, and no external assets.
-
-## Requirements
-
-- Python 3.9 or newer.
-- A client that supports an API base URL override.
-- Access to the upstream provider, directly or through your VPN.
-
-## Tested clients
-
-Release `0.0.1` has been tested end to end with:
-
-| Client | Configuration |
-| --- | --- |
-| Codex | `model_provider` and `base_url` in `~/.codex/config.toml` |
-| OpenCode | Provider `options.baseURL` override |
-| [pi](https://pi.dev/) | Provider `baseUrl` override |
-
-Other clients should work when they support a base-URL override and speak the
-same wire protocol as the selected upstream.
-
-### Other observability options
-
-AgentContext is complementary to OpenTelemetry and full observability
-platforms. Some coding agents can emit their own telemetry: Claude Code
-supports OpenTelemetry metrics and events with optional tracing, Codex can
-export OpenTelemetry telemetry, OpenCode has experimental OpenTelemetry support,
-and pi has community OpenTelemetry extensions. Tools such as Langfuse and
-Arize Phoenix can provide broader tracing, metrics, evaluations, and dashboards.
-
-Those approaches are useful for questions like *how long did this run take?*,
-*which tools failed?*, or *how many tokens were used?* AgentContext focuses on
-a different question: **what context did the coding agent actually send to the
-model API?** It works at the HTTP boundary, so it can provide that view without
-requiring SDK-level instrumentation or a separate telemetry backend.
 
 ## Quick start
 
@@ -133,7 +79,8 @@ Expected response:
 {"status":"ok"}
 ```
 
-Open the live Context Timeline:
+Point a supported client's API base URL to `http://127.0.0.1:8090`, make an
+agent request, and open:
 
 ```text
 http://127.0.0.1:8090/_audit/context
@@ -142,29 +89,74 @@ http://127.0.0.1:8090/_audit/context
 The page polls every 2.5 seconds while its browser tab is visible. It reads the
 active log and rotated backups directly; no separate web application is needed.
 
+## When to use AgentContext
+
+AgentContext is a good fit when you want to:
+
+- Inspect the exact request context an agent sends upstream.
+- See how messages and tool calls accumulate across successive model calls.
+- Audit traffic to a VPN-only API, local model server, or provider gateway.
+- Observe a compatible client without installing an SDK or maintaining a
+  parser for its private session-file format.
+- Keep a small, bounded request log without operating a database.
+
+AgentContext is intentionally not a complete session-history or analytics
+platform. It does not import earlier conversations, record streamed response
+bodies, calculate token costs, or provide long-term cross-project search.
+
+## Features
+
+- Transparent forwarding of HTTP methods, paths, query strings, credentials,
+  provider headers, duplicate headers, and streaming responses.
+- Private rotating JSONL logs: 25 MiB per file with five backups.
+- Authorization, account headers, and query-string contents are never logged.
+- Request Context Timeline with 2.5-second live polling.
+- Deduplicated user, developer, and assistant messages.
+- Matched tool calls and results using `call_id`.
+- Per-call context growth, filters, search, and expandable payloads.
+- Encrypted reasoning content is excluded from the browser API.
+- One Python process, no database, no frontend build, and no external assets.
+
+## Scope and limitations
+
+- Only traffic routed through AgentContext is captured; existing agent history
+  is not imported.
+- Responses are streamed back without recording their bodies. A final assistant
+  response may appear only when a later request includes it in context.
+- Event time means "first observed in this request," not the exact time a tool
+  ran or a message was produced.
+- One process points to one upstream. Use separate ports and logs for multiple
+  upstream providers.
+- AgentContext does not translate protocols. The client and upstream must speak
+  the same protocol, such as OpenAI Responses, OpenAI Chat Completions, or
+  Anthropic Messages.
+
+## Requirements
+
+- Python 3.9 or newer.
+- A client that supports an API base URL override.
+- Access to the upstream provider, directly or through your VPN.
+
+## Tested clients
+
+Release `0.0.1` has been tested end to end with:
+
+| Client | Configuration |
+| --- | --- |
+| Codex | `model_provider` and `base_url` in `~/.codex/config.toml` |
+| [OpenCode](https://opencode.ai/) | Provider `options.baseURL` override |
+| [pi](https://pi.dev/) | Provider `baseUrl` override |
+
+Other clients should work when they support a base-URL override and speak the
+same wire protocol as the selected upstream.
+
 ## Choose the upstream
 
 AgentContext forwards to `UPSTREAM_URL + incoming path`. The upstream can be a
 commercial API, an API gateway, or a model server running on the same machine,
 another VPN host, a container, or Kubernetes.
 
-Standard OpenAI API:
-
-```bash
-UPSTREAM_URL=https://api.openai.com/v1 \
-LLM_LOG_FILE="$PWD/requests.jsonl" \
-./venv/bin/uvicorn ac-proxy:app --host 127.0.0.1 --port 8090 --no-access-log
-```
-
-Codex with an existing ChatGPT subscription login:
-
-```bash
-UPSTREAM_URL=https://chatgpt.com/backend-api/codex \
-LLM_LOG_FILE="$PWD/requests.jsonl" \
-./venv/bin/uvicorn ac-proxy:app --host 127.0.0.1 --port 8090 --no-access-log
-```
-
-Another provider:
+Choose the provider base URL and start the same proxy command:
 
 ```bash
 UPSTREAM_URL=https://provider.example/v1 \
@@ -172,21 +164,13 @@ LLM_LOG_FILE="$PWD/requests.jsonl" \
 ./venv/bin/uvicorn ac-proxy:app --host 127.0.0.1 --port 8090 --no-access-log
 ```
 
-OpenRouter:
-
-```bash
-UPSTREAM_URL=https://openrouter.ai/api/v1 \
-LLM_LOG_FILE="$PWD/requests.jsonl" \
-./venv/bin/uvicorn ac-proxy:app --host 127.0.0.1 --port 8090 --no-access-log
-```
-
-A local llama.cpp server exposing an OpenAI-compatible API on port `8080`:
-
-```bash
-UPSTREAM_URL=http://127.0.0.1:8080/v1 \
-LLM_LOG_FILE="$PWD/requests.jsonl" \
-./venv/bin/uvicorn ac-proxy:app --host 127.0.0.1 --port 8090 --no-access-log
-```
+| Upstream | Example `UPSTREAM_URL` |
+| --- | --- |
+| Standard OpenAI API | `https://api.openai.com/v1` |
+| Codex with an existing ChatGPT subscription login | `https://chatgpt.com/backend-api/codex` |
+| OpenRouter | `https://openrouter.ai/api/v1` |
+| Local llama.cpp with its OpenAI-compatible server | `http://127.0.0.1:8080/v1` |
+| Another commercial or self-hosted provider | `https://provider.example/v1` |
 
 For remote or containerized llama.cpp, replace `127.0.0.1:8080` with the
 address reachable from the AgentContext process. Configure the client model
@@ -354,7 +338,7 @@ docker run --rm \
 Do not publish it with `-p 8090:8090` on an untrusted host; that can expose the
 unauthenticated proxy to the network.
 
-## Audit data and Context Timeline
+## Audit data and Request Context Timeline
 
 Each request record contains:
 
@@ -374,23 +358,28 @@ The query string itself, request headers, authorization tokens, and provider
 account identifiers are not recorded. Responses are streamed back without
 recording response bodies.
 
-The Context Timeline reconstructs events already present in captured request
-context. Later requests often repeat earlier context, so items are deduplicated
-by `id` or `call_id`. Event time means “first observed in this request”; it is
-not an exact tool execution timestamp. A final assistant response may not be
-visible until a later request includes it in context.
+File logs are created with mode `0600`. Rotation retains one active file of up
+to 25 MiB and five backups, for a maximum of approximately 150 MiB. The files
+are not encrypted at rest and their request bodies can contain prompts, source
+code, images, commands, tool arguments, and tool output. Protect the host and
+delete the files according to your own retention requirements.
+
+The Request Context Timeline reconstructs events already present in captured
+request context. Later requests often repeat earlier context, so items are
+deduplicated by `id` or `call_id`. Event time means “first observed in this
+request”; it is not an exact tool execution timestamp. A final assistant
+response may not be visible until a later request includes it in context.
 
 Local endpoints:
 
 | Endpoint | Purpose |
 | --- | --- |
 | `/_audit/healthz` | Health check |
-| `/_audit/context` | Context Timeline web page |
+| `/_audit/context` | Request Context Timeline web page |
 | `/_audit/api/context?limit=200` | Normalized calls and unique events |
 | `/_audit/api/requests?limit=200` | Raw captured request records |
 
-The API limit is clamped to 1–1000 records. `/_audit/trajectory` remains an
-alias for early development links.
+The API limit is clamped to 1–1000 records.
 
 ## Configuration
 
@@ -401,6 +390,31 @@ alias for early development links.
 
 One process points to one upstream. Run separate ports and log files when agents
 need different providers.
+
+## Related projects
+
+[AgentsView](https://agentsview.io/) is a local-first application for importing,
+searching, and analyzing the session files that coding agents leave on disk.
+Use it when you want historical session browsing, cost reporting, or
+cross-project analytics. AgentContext instead focuses on the live HTTP request
+context sent to a chosen upstream. The two tools observe different layers and
+can be used together.
+
+### Other observability options
+
+AgentContext is also complementary to OpenTelemetry and full observability
+platforms. Some coding agents can emit their own telemetry: Claude Code
+supports OpenTelemetry metrics and events with optional tracing, Codex can
+export OpenTelemetry telemetry, OpenCode has experimental OpenTelemetry
+support, and pi has community OpenTelemetry extensions. Tools such as Langfuse
+and Arize Phoenix can provide broader tracing, metrics, evaluations, and
+dashboards.
+
+Those approaches are useful for questions like *how long did this run take?*,
+*which tools failed?*, or *how many tokens were used?* AgentContext focuses on
+a different question: **what context did the coding agent actually send to the
+model API?** It works at the HTTP boundary, so it can provide that view without
+requiring SDK-level instrumentation or a separate telemetry backend.
 
 ## Development
 
