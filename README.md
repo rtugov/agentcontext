@@ -18,7 +18,7 @@ traffic routed through the proxy; it is not a historical session importer and
 does not record upstream response bodies.
 
 ```text
-Codex / OpenCode / pi
+Codex / OpenCode / pi / ...
           │
           ▼
   AgentContext :8090 ─────► existing provider API
