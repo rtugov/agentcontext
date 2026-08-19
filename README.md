@@ -12,6 +12,9 @@ request protocol and streaming response, records outbound request bodies in a
 private rotating JSONL log, and serves a dependency-free **Request Context
 Timeline**.
 
+Unlike an AI gateway, AgentContext does not manage models, credentials, or
+routing. It transparently observes the protocol your agent already uses.
+
 Use it to inspect context growth, repeated prompts, reasoning markers, tool
 calls, and tool results as they are sent upstream. AgentContext captures new
 traffic routed through the proxy; it is not a historical session importer and
