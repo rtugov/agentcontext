@@ -42,6 +42,8 @@ protocol-level view without instrumenting the agent itself.
 
 [![AgentContext Request Context Timeline showing captured calls, messages, tool calls, and results](docs/context-timeline.png)](docs/context-timeline.png)
 
+[Explore the interactive Context Timeline demo](https://rtugov.github.io/agentcontext/demo/).
+
 Open `http://127.0.0.1:8090/_audit/context` while the proxy is running to
 inspect captured context as it arrives.
 
