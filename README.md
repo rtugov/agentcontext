@@ -21,14 +21,17 @@ traffic routed through the proxy; it is not a historical session importer and
 does not record upstream response bodies.
 
 ```text
-Codex / OpenCode / pi / ...
-          │
-          ▼
-  AgentContext :8090 ─────► existing provider API
-          │
-          ├── requests.jsonl
-          └── /_audit/context
+Codex / OpenCode / pi / custom agents / API clients / ...
+                         │
+                         ▼
+             AgentContext :8090 ─────► OpenAI / OpenRouter / vLLM /
+                         │              llama.cpp / compatible APIs
+                         ├── requests.jsonl
+                         └── /_audit/context
 ```
+
+One observable hop between your agents and compatible model endpoints—official,
+routed, or self-hosted—without changing their request protocol.
 
 ### Why inspect agent context?
 
