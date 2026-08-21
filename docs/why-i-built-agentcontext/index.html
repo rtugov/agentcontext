@@ -3,17 +3,17 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>AI Is Making Small, Personal Software Possible Again · AgentContext</title>
+  <title>AI Is Making It Possible to Build the Tools You Need—in a Matter of Hours · AgentContext</title>
   <meta name="description" content="How a need for a tiny LLM proxy became AgentContext—and what building it revealed about creating software in the AI era.">
   <meta name="author" content="AgentContext">
   <link rel="canonical" href="https://rtugov.github.io/agentcontext/why-i-built-agentcontext/">
   <meta property="og:type" content="article">
-  <meta property="og:title" content="AI Is Making Small, Personal Software Possible Again">
+  <meta property="og:title" content="AI Is Making It Possible to Build the Tools You Need—in a Matter of Hours">
   <meta property="og:description" content="How a need for a tiny LLM proxy became AgentContext—and what building it revealed about creating software in the AI era.">
   <meta property="og:url" content="https://rtugov.github.io/agentcontext/why-i-built-agentcontext/">
   <meta property="og:image" content="https://rtugov.github.io/agentcontext/context-timeline.png">
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="AI Is Making Small, Personal Software Possible Again">
+  <meta name="twitter:title" content="AI Is Making It Possible to Build the Tools You Need—in a Matter of Hours">
   <meta name="twitter:description" content="How a need for a tiny LLM proxy became AgentContext—and what building it revealed about creating software in the AI era.">
   <meta name="twitter:image" content="https://rtugov.github.io/agentcontext/context-timeline.png">
   <style>
@@ -181,28 +181,30 @@
 
   <main>
     <p class="eyebrow">A builder's note</p>
-    <h1>AI is making small, personal software possible again.</h1>
+    <h1>AI is making it possible to build the tools you need—in a matter of hours.</h1>
     <p class="dek">How a need for a tiny LLM proxy became AgentContext—and what building it revealed about creating software in the AI era.</p>
     <p class="meta"><time datetime="2026-08-21">August 21, 2026</time> · 3 min read</p>
 
     <article>
-      <p>During my recent work in AI-agent DevOps, I ran into a practical problem: I couldn't see exactly what my agents were sending to LLMs.</p>
+      <p>As a DevOps/SRE engineer, I started exploring how AI agents could operate in real-world infrastructure—and quickly ran into a practical problem: I couldn't see exactly what they were sending to the LLMs.</p>
 
-      <p>My setup includes vendor APIs, my own GPU inference, GPUs rented wherever affordable VPS capacity is available, and agents running across Kubernetes clusters. Sometimes regional connectivity becomes a problem.</p>
+      <p>My setup spans vendor APIs, self-hosted GPU inference, and GPU servers rented wherever capacity is affordable, while the agents themselves run across Kubernetes clusters. In this kind of environment, regional connectivity becomes a practical concern.</p>
 
       <p>I didn't need another platform managing models, routing, keys, or costs. I needed a tiny, transparent proxy that did one thing: forward traffic to an LLM API.</p>
 
-      <p>Then I realized: if the traffic already passes through my proxy, why not make it visible?</p>
+      <p>Once the requests were passing through the proxy, another idea became obvious: why not inspect exactly what was being sent?</p>
 
-      <p>So I added request capture and a small timeline UI. That became <a href="https://github.com/rtugov/agentcontext">AgentContext</a>.</p>
+      <p>What began as a way to inspect API traffic later proved useful with Codex, OpenCode, pi, and other agent clients. So I added request capture and a small timeline UI. That became <a href="https://github.com/rtugov/agentcontext">AgentContext</a>.</p>
 
-      <p>I had already explored tools such as <a href="https://langfuse.com/">Langfuse</a> and <a href="https://docs.litellm.ai/">LiteLLM</a>. Later, I discovered <a href="https://github.com/kenn-io/agentsview">AgentsView</a> and smiled at how close its name was to AgentContext. They are valuable projects, but they solve different problems.</p>
+      <p>I had already explored <a href="https://langfuse.com/">Langfuse</a> and <a href="https://docs.litellm.ai/">LiteLLM</a>, and later discovered <a href="https://github.com/kenn-io/agentsview">AgentsView</a> and <a href="https://github.com/deepseek-ai/deepseek-harness">DeepSeek Harness</a> with its Trajectory view. These projects confirmed that many of us are trying to make agent behavior easier to inspect—but we are approaching the problem from different layers.</p>
+
+      <p>AgentContext remained intentionally narrow: observe the live request context at the HTTP boundary without becoming another management platform.</p>
 
       <div class="callout">
-        <p>This isn't really a story about showing off a tool. What surprised me most was how quickly I could go from <strong>“I need this”</strong> to a useful first version.</p>
+        <p><strong>This isn't really a story about showing off AgentContext.</strong> What surprised me most was how quickly I could go from “I need this” to a useful first version.</p>
       </div>
 
-      <p>It reminded me of <a href="https://www.tomshardware.com/tech-industry/artificial-intelligence/dev-uses-claude-ai-to-create-native-macos-driver-for-obscure-windows-only-printer-linux-container-hack-enables-system-wide-cmd-p-printing-driver-now-available-on-github">the developer who used Claude Code to make an old Windows-only HP printer work with modern macOS</a>. It was a very specific problem, solved because someone needed it solved.</p>
+      <p>Around the same time, I read about <a href="https://www.tomshardware.com/tech-industry/artificial-intelligence/dev-uses-claude-ai-to-create-native-macos-driver-for-obscure-windows-only-printer-linux-container-hack-enables-system-wide-cmd-p-printing-driver-now-available-on-github">a developer who used Claude Code to make an old Windows-only HP printer work with modern macOS</a>. It was a very specific problem, solved because someone needed it solved.</p>
 
       <p>That may be one of the biggest changes in the AI era: software no longer needs to begin with a company, a roadmap, or a large team.</p>
 
