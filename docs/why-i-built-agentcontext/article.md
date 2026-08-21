@@ -20,7 +20,7 @@ AgentContext remained intentionally narrow: observe the live request context at 
 
 > **This isn't really a story about showing off AgentContext.** What surprised me most was how quickly I could go from “I need this” to a useful first version.
 
-Around the same time, I read about [a developer who used Claude Code to make an old Windows-only HP printer work with modern macOS](https://www.tomshardware.com/tech-industry/artificial-intelligence/dev-uses-claude-ai-to-create-native-macos-driver-for-obscure-windows-only-printer-linux-container-hack-enables-system-wide-cmd-p-printing-driver-now-available-on-github). It was a very specific problem, solved because someone needed it solved.
+Not long after, I read about [a developer who used Claude Code to make an old Windows-only HP printer work with modern macOS](https://www.tomshardware.com/tech-industry/artificial-intelligence/dev-uses-claude-ai-to-create-native-macos-driver-for-obscure-windows-only-printer-linux-container-hack-enables-system-wide-cmd-p-printing-driver-now-available-on-github). It was a very specific problem, solved because someone needed it solved.
 
 That may be one of the biggest changes in the AI era: software no longer needs to begin with a company, a roadmap, or a large team.
 
