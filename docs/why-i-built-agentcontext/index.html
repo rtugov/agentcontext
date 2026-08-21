@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AI Is Making Small, Personal Software Possible Again · AgentContext</title>
+  <meta name="description" content="How a need for a tiny LLM proxy became AgentContext—and what building it revealed about creating software in the AI era.">
+  <meta name="author" content="AgentContext">
+  <link rel="canonical" href="https://rtugov.github.io/agentcontext/why-i-built-agentcontext/">
+  <meta property="og:type" content="article">
+  <meta property="og:title" content="AI Is Making Small, Personal Software Possible Again">
+  <meta property="og:description" content="How a need for a tiny LLM proxy became AgentContext—and what building it revealed about creating software in the AI era.">
+  <meta property="og:url" content="https://rtugov.github.io/agentcontext/why-i-built-agentcontext/">
+  <meta property="og:image" content="https://rtugov.github.io/agentcontext/context-timeline.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="AI Is Making Small, Personal Software Possible Again">
+  <meta name="twitter:description" content="How a need for a tiny LLM proxy became AgentContext—and what building it revealed about creating software in the AI era.">
+  <meta name="twitter:image" content="https://rtugov.github.io/agentcontext/context-timeline.png">
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #101113;
+      --panel: #181a1f;
+      --line: #30343d;
+      --muted: #9ba1ae;
+      --text: #e8eaf0;
+      --blue: #83b4ff;
+      --cyan: #61c8d4;
+      --orange: #ee9b42;
+    }
+
+    * { box-sizing: border-box; }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      margin: 0;
+      background:
+        radial-gradient(circle at 50% -20%, rgba(97, 200, 212, .12), transparent 35rem),
+        var(--bg);
+      color: var(--text);
+      font: 17px/1.75 ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    a { color: var(--blue); text-underline-offset: .18em; }
+    a:hover { color: #b4d2ff; }
+    a:focus-visible { outline: 2px solid var(--cyan); outline-offset: 4px; border-radius: 2px; }
+
+    .site-header {
+      border-bottom: 1px solid var(--line);
+      background: rgba(16, 17, 19, .88);
+      backdrop-filter: blur(12px);
+    }
+
+    .nav {
+      display: flex;
+      align-items: center;
+      gap: 22px;
+      width: calc(100% - 40px);
+      max-width: 1040px;
+      min-height: 64px;
+      margin: auto;
+    }
+
+    .brand {
+      margin-right: auto;
+      color: var(--text);
+      font: 700 16px/1 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      text-decoration: none;
+    }
+
+    .brand::before { content: "●"; margin-right: 9px; color: var(--cyan); }
+    .nav-link { color: var(--muted); font-size: 14px; text-decoration: none; }
+
+    main {
+      width: calc(100% - 40px);
+      max-width: 740px;
+      margin: 0 auto;
+      padding: 88px 0 96px;
+    }
+
+    .eyebrow {
+      margin: 0 0 18px;
+      color: var(--cyan);
+      font: 700 12px/1.4 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+    }
+
+    h1 {
+      max-width: 700px;
+      margin: 0;
+      font-size: clamp(2.35rem, 7vw, 4.6rem);
+      line-height: 1.02;
+      letter-spacing: -.055em;
+    }
+
+    .dek {
+      max-width: 650px;
+      margin: 28px 0 18px;
+      color: #c7cad2;
+      font-size: clamp(1.1rem, 2.5vw, 1.35rem);
+      line-height: 1.55;
+    }
+
+    .meta {
+      margin: 0 0 56px;
+      color: var(--muted);
+      font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    }
+
+    article p { margin: 0 0 1.45em; }
+
+    .callout {
+      margin: 46px 0;
+      padding: 24px 26px;
+      border: 1px solid var(--line);
+      border-left: 4px solid var(--orange);
+      border-radius: 8px;
+      background: var(--panel);
+      font-size: 1.12rem;
+    }
+
+    .callout p { margin: 0; }
+
+    .closing {
+      margin-top: 54px;
+      font-size: clamp(1.45rem, 4vw, 2rem);
+      line-height: 1.35;
+      letter-spacing: -.025em;
+    }
+
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-top: 42px;
+    }
+
+    .button {
+      display: inline-flex;
+      align-items: center;
+      min-height: 44px;
+      padding: 10px 16px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: var(--panel);
+      color: var(--text);
+      font: 600 14px/1 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      text-decoration: none;
+    }
+
+    .button.primary { border-color: #4f7292; background: #183246; }
+    .button:hover { border-color: #667080; background: #22252c; color: var(--text); }
+
+    footer {
+      border-top: 1px solid var(--line);
+      padding: 28px 20px;
+      color: var(--muted);
+      text-align: center;
+      font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    }
+
+    @media (max-width: 620px) {
+      .nav { width: calc(100% - 28px); gap: 14px; }
+      .nav-link.demo { display: none; }
+      main { width: calc(100% - 32px); padding: 60px 0 72px; }
+      .meta { margin-bottom: 42px; }
+      .callout { margin: 36px 0; padding: 20px; }
+    }
+  </style>
+</head>
+<body>
+  <header class="site-header">
+    <nav class="nav" aria-label="Primary navigation">
+      <a class="brand" href="https://github.com/rtugov/agentcontext">AgentContext</a>
+      <a class="nav-link demo" href="../demo/">Context Timeline</a>
+      <a class="nav-link" href="https://github.com/rtugov/agentcontext">GitHub</a>
+    </nav>
+  </header>
+
+  <main>
+    <p class="eyebrow">A builder's note</p>
+    <h1>AI is making small, personal software possible again.</h1>
+    <p class="dek">How a need for a tiny LLM proxy became AgentContext—and what building it revealed about creating software in the AI era.</p>
+    <p class="meta"><time datetime="2026-08-21">August 21, 2026</time> · 3 min read</p>
+
+    <article>
+      <p>During my recent work in AI-agent DevOps, I ran into a practical problem: I couldn't see exactly what my agents were sending to LLMs.</p>
+
+      <p>My setup includes vendor APIs, my own GPU inference, GPUs rented wherever affordable VPS capacity is available, and agents running across Kubernetes clusters. Sometimes regional connectivity becomes a problem.</p>
+
+      <p>I didn't need another platform managing models, routing, keys, or costs. I needed a tiny, transparent proxy that did one thing: forward traffic to an LLM API.</p>
+
+      <p>Then I realized: if the traffic already passes through my proxy, why not make it visible?</p>
+
+      <p>So I added request capture and a small timeline UI. That became <a href="https://github.com/rtugov/agentcontext">AgentContext</a>.</p>
+
+      <p>I had already explored tools such as <a href="https://langfuse.com/">Langfuse</a> and <a href="https://docs.litellm.ai/">LiteLLM</a>. Later, I discovered <a href="https://github.com/kenn-io/agentsview">AgentsView</a> and smiled at how close its name was to AgentContext. They are valuable projects, but they solve different problems.</p>
+
+      <div class="callout">
+        <p>This isn't really a story about showing off a tool. What surprised me most was how quickly I could go from <strong>“I need this”</strong> to a useful first version.</p>
+      </div>
+
+      <p>It reminded me of <a href="https://www.tomshardware.com/tech-industry/artificial-intelligence/dev-uses-claude-ai-to-create-native-macos-driver-for-obscure-windows-only-printer-linux-container-hack-enables-system-wide-cmd-p-printing-driver-now-available-on-github">the developer who used Claude Code to make an old Windows-only HP printer work with modern macOS</a>. It was a very specific problem, solved because someone needed it solved.</p>
+
+      <p>That may be one of the biggest changes in the AI era: software no longer needs to begin with a company, a roadmap, or a large team.</p>
+
+      <p>It can begin as a missing personal utility. We can study by building, create something for one narrow problem, and share it when it might help someone else.</p>
+
+      <p class="closing">Maybe the most important skill now is noticing friction—and realizing that you can remove it yourself.</p>
+
+      <div class="actions" aria-label="AgentContext links">
+        <a class="button primary" href="../demo/">Explore the live demo</a>
+        <a class="button" href="https://github.com/rtugov/agentcontext">View on GitHub</a>
+      </div>
+    </article>
+  </main>
+
+  <footer>AgentContext · Open source under the MIT License</footer>
+</body>
+</html>
